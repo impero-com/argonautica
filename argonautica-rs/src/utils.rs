@@ -1,10 +1,12 @@
 //! Utility functions for generating random bytes, which can be useful for generating
 //! [`SecretKey`](input/struct.SecretKey.html)s, for example.
-use base64;
-use rand::rngs::OsRng;
-use rand::RngCore;
+use base64::{
+    Engine,
+    engine::{GeneralPurpose, general_purpose::STANDARD},
+};
+use rand::{TryRngCore, rngs::OsRng};
 
-use {Error, ErrorKind};
+use crate::{Error, ErrorKind};
 
 /// A utility function for generating cryptographically-secure random bytes. A quick glance at
 /// this function's source should give you a good idea of what the function is doing.
@@ -26,7 +28,7 @@ pub fn generate_random_base64_encoded_string(len: u32) -> Result<String, Error> 
     OsRng
         .try_fill_bytes(&mut bytes)
         .map_err(|e| Error::new(ErrorKind::OsRngError).add_context(format!("{}", e)))?;
-    let output = base64::encode_config(&bytes, base64::STANDARD);
+    let output = STANDARD.encode(&bytes);
     Ok(output)
 }
 
@@ -37,12 +39,12 @@ pub fn generate_random_base64_encoded_string(len: u32) -> Result<String, Error> 
 /// function is doing.
 pub fn generate_random_base64_encoded_string_config(
     len: u32,
-    config: base64::Config,
+    engine: GeneralPurpose,
 ) -> Result<String, Error> {
     let mut bytes = vec![0u8; len as usize];
     OsRng
         .try_fill_bytes(&mut bytes)
         .map_err(|e| Error::new(ErrorKind::OsRngError).add_context(format!("{}", e)))?;
-    let output = base64::encode_config(&bytes, config);
+    let output = engine.encode(&bytes);
     Ok(output)
 }

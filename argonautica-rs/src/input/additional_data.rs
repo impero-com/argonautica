@@ -1,4 +1,4 @@
-use {Error, ErrorKind};
+use crate::{Error, ErrorKind};
 
 impl From<Vec<u8>> for AdditionalData {
     fn from(bytes: Vec<u8>) -> AdditionalData {
@@ -12,31 +12,31 @@ impl From<String> for AdditionalData {
     }
 }
 
-impl<'a> From<&'a [u8]> for AdditionalData {
+impl From<&[u8]> for AdditionalData {
     fn from(bytes: &[u8]) -> AdditionalData {
         AdditionalData(bytes.to_vec())
     }
 }
 
-impl<'a> From<&'a str> for AdditionalData {
+impl From<&str> for AdditionalData {
     fn from(s: &str) -> AdditionalData {
         AdditionalData(s.as_bytes().to_vec())
     }
 }
 
-impl<'a> From<&'a Vec<u8>> for AdditionalData {
+impl From<&Vec<u8>> for AdditionalData {
     fn from(bytes: &Vec<u8>) -> AdditionalData {
         AdditionalData(bytes.clone())
     }
 }
 
-impl<'a> From<&'a String> for AdditionalData {
+impl From<&String> for AdditionalData {
     fn from(s: &String) -> AdditionalData {
         AdditionalData(s.clone().into_bytes())
     }
 }
 
-impl<'a> From<&'a AdditionalData> for AdditionalData {
+impl From<&AdditionalData> for AdditionalData {
     fn from(additional_data: &AdditionalData) -> AdditionalData {
         additional_data.clone()
     }
@@ -46,6 +46,7 @@ impl<'a> From<&'a AdditionalData> for AdditionalData {
 #[derive(Clone, Debug, Eq, PartialEq, Ord, PartialOrd, Hash)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 #[cfg_attr(feature = "serde", serde(rename_all = "camelCase"))]
+#[allow(clippy::len_without_is_empty)]
 pub struct AdditionalData(Vec<u8>);
 
 impl AdditionalData {
@@ -69,7 +70,7 @@ impl AdditionalData {
 
 impl AdditionalData {
     pub(crate) fn validate(&self) -> Result<(), Error> {
-        if self.len() >= ::std::u32::MAX as usize {
+        if self.len() >= u32::MAX as usize {
             return Err(Error::new(ErrorKind::AdditionalDataTooLongError)
                 .add_context(format!("Length: {}", self.0.len())));
         }

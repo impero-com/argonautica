@@ -1,7 +1,6 @@
 use std::str::FromStr;
 
-use config::defaults::DEFAULT_VARIANT;
-use {Error, ErrorKind};
+use crate::{Error, ErrorKind, config::defaults::DEFAULT_VARIANT};
 
 impl Default for Variant {
     /// Returns [`Variant::Argon2id`](enum.Variant.html#variant.Argon2id)
@@ -12,6 +11,7 @@ impl Default for Variant {
 
 impl FromStr for Variant {
     ///
+    #[allow(clippy::empty_docs)]
     type Err = Error;
 
     /// Performs the following mapping:

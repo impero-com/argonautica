@@ -1,6 +1,8 @@
+#![allow(non_local_definitions)]
+
 use std::fmt;
 
-use ErrorKind;
+use crate::ErrorKind;
 
 impl fmt::Debug for Error {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {

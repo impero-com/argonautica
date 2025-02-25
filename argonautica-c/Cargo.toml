@@ -13,10 +13,12 @@ publish = true
 readme = "README.md"
 repository = "https://github.com/bcmyers/argonautica"
 
+edition = "2024"
+
 [lib]
 name = "argonautica_c"
 path = "src/lib.rs"
-crate_type = ["cdylib"]
+crate-type = ["cdylib"]
 
 [[bin]]
 name = "generate_bindings"
@@ -27,8 +29,8 @@ simd = ["argonautica/simd"]
 
 [dependencies]
 argonautica = { version = "0.2", path = "../argonautica-rs" }
-cbindgen = "0.9"
-itoa = "0.4"
+cbindgen = "0.28"
+itoa = "1.0"
 libc = "0.2"
 
 [badges]

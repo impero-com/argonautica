@@ -8,10 +8,8 @@ mod variant;
 mod verifier_config;
 mod version;
 
-pub use self::backend::Backend;
-pub use self::defaults::*;
 pub(crate) use self::flags::Flags;
-pub use self::hasher_config::HasherConfig;
-pub use self::variant::Variant;
-pub use self::verifier_config::VerifierConfig;
-pub use self::version::Version;
+pub use self::{
+    backend::Backend, defaults::*, hasher_config::HasherConfig, variant::Variant,
+    verifier_config::VerifierConfig, version::Version,
+};

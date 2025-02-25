@@ -20,8 +20,7 @@ mod password;
 mod salt;
 mod secret_key;
 
-pub use self::additional_data::AdditionalData;
 pub(crate) use self::container::Container;
-pub use self::password::Password;
-pub use self::salt::Salt;
-pub use self::secret_key::SecretKey;
+pub use self::{
+    additional_data::AdditionalData, password::Password, salt::Salt, secret_key::SecretKey,
+};

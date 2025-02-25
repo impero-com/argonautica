@@ -1,7 +1,6 @@
 use std::fmt;
 
-use input::Container;
-use {Error, ErrorKind};
+use crate::{Error, ErrorKind, input::Container};
 
 impl<'a> From<&'a str> for Password<'a> {
     fn from(s: &'a str) -> Password<'a> {
@@ -88,7 +87,7 @@ impl<'a> From<Vec<u8>> for Password<'a> {
 impl<'a> From<&'a Password<'a>> for Password<'a> {
     fn from(sk: &'a Password<'a>) -> Password<'a> {
         let bytes = match sk.inner {
-            Container::Borrowed(ref bytes) => &**bytes,
+            Container::Borrowed(bytes) => bytes,
             Container::BorrowedMut(ref bytes) => &**bytes,
             Container::Owned(ref bytes) => bytes,
         };
@@ -101,11 +100,11 @@ impl<'a> From<&'a Password<'a>> for Password<'a> {
 impl<'a> From<&'a mut Password<'a>> for Password<'a> {
     fn from(sk: &'a mut Password<'a>) -> Password<'a> {
         match sk.inner {
-            Container::Borrowed(ref bytes) => Password {
-                inner: Container::Borrowed(&**bytes),
+            Container::Borrowed(bytes) => Password {
+                inner: Container::Borrowed(bytes),
             },
             Container::BorrowedMut(ref mut bytes) => Password {
-                inner: Container::BorrowedMut(&mut **bytes),
+                inner: Container::BorrowedMut(bytes),
             },
             Container::Owned(ref mut bytes) => Password {
                 inner: Container::BorrowedMut(&mut *bytes),
@@ -114,7 +113,7 @@ impl<'a> From<&'a mut Password<'a>> for Password<'a> {
     }
 }
 
-impl<'a> fmt::Debug for Password<'a> {
+impl fmt::Debug for Password<'_> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "****")
     }
@@ -126,11 +125,11 @@ pub struct Password<'a> {
     pub(crate) inner: Container<'a>,
 }
 
-impl<'a> Password<'a> {
+impl Password<'_> {
     /// Read-only access to the underlying byte buffer
     pub fn as_bytes(&self) -> &[u8] {
         match self.inner {
-            Container::Borrowed(ref bytes) => bytes,
+            Container::Borrowed(bytes) => bytes,
             Container::BorrowedMut(ref bytes) => bytes,
             Container::Owned(ref bytes) => bytes,
         }
@@ -143,12 +142,10 @@ impl<'a> Password<'a> {
     /// (such as a `&str` or a `&[u8]`). The [`Password`](struct.Password.html) must be mutable
     /// in order to hash or verify with the `password_clearing` configuration set to `true`
     pub fn is_mutable(&self) -> bool {
-        match self.inner {
-            Container::Borrowed(_) => false,
-            _ => true,
-        }
+        !matches!(self.inner, Container::Borrowed(_))
     }
     /// Read-only acccess to the underlying byte buffer's length (in number of bytes)
+    #[allow(clippy::len_without_is_empty)]
     pub fn len(&self) -> usize {
         self.as_bytes().len()
     }
@@ -168,12 +165,12 @@ impl<'a> Password<'a> {
     }
 }
 
-impl<'a> Password<'a> {
+impl Password<'_> {
     pub(crate) fn validate(&self) -> Result<(), Error> {
         if self.len() == 0 {
             return Err(Error::new(ErrorKind::PasswordTooShortError));
         }
-        if self.len() >= ::std::u32::MAX as usize {
+        if self.len() >= u32::MAX as usize {
             return Err(Error::new(ErrorKind::PasswordTooLongError)
                 .add_context(format!("Length: {}", self.len())));
         }

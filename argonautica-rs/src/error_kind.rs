@@ -1,7 +1,10 @@
+#![allow(non_local_definitions)]
+
 /// Enum representing the various kinds of errors
 #[derive(Fail, Copy, Clone, Debug, Eq, PartialEq, Ord, PartialOrd, Hash)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 #[cfg_attr(feature = "serde", serde(rename_all = "camelCase"))]
+#[non_exhaustive]
 pub enum ErrorKind {
     /// Additional data too long. Length in bytes must be less than 2^32
     #[fail(display = "Additional data too long. Length in bytes must be less than 2^32")]
@@ -141,10 +144,6 @@ pub enum ErrorKind {
         display = "Version encode error. &str or u32 provided could not be encoded into a Version"
     )]
     VersionEncodeError,
-
-    #[doc(hidden)]
-    #[fail(display = "__Nonexaustive variant")]
-    __Nonexhaustive,
 }
 
 #[cfg(test)]

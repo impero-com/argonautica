@@ -3,3 +3,4 @@ members = [
     "argonautica-c",
     "argonautica-rs",
 ]
+resolver = "2"

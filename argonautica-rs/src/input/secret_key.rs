@@ -1,9 +1,11 @@
 use std::fmt;
 
-use base64;
+use base64::{
+    Engine,
+    engine::{GeneralPurpose, general_purpose::STANDARD},
+};
 
-use input::Container;
-use {Error, ErrorKind};
+use crate::{Error, ErrorKind, input::Container};
 
 impl<'a> From<&'a str> for SecretKey<'a> {
     fn from(s: &'a str) -> SecretKey<'a> {
@@ -39,7 +41,7 @@ impl<'a> From<&'a mut String> for SecretKey<'a> {
     }
 }
 
-impl<'a> From<String> for SecretKey<'a> {
+impl From<String> for SecretKey<'_> {
     fn from(s: String) -> SecretKey<'static> {
         SecretKey {
             inner: Container::Owned(s.into_bytes()),
@@ -79,7 +81,7 @@ impl<'a> From<&'a mut Vec<u8>> for SecretKey<'a> {
     }
 }
 
-impl<'a> From<Vec<u8>> for SecretKey<'a> {
+impl From<Vec<u8>> for SecretKey<'_> {
     fn from(bytes: Vec<u8>) -> SecretKey<'static> {
         SecretKey {
             inner: Container::Owned(bytes),
@@ -90,7 +92,7 @@ impl<'a> From<Vec<u8>> for SecretKey<'a> {
 impl<'a> From<&'a SecretKey<'a>> for SecretKey<'a> {
     fn from(sk: &'a SecretKey<'a>) -> SecretKey<'a> {
         let bytes = match sk.inner {
-            Container::Borrowed(ref bytes) => &**bytes,
+            Container::Borrowed(bytes) => bytes,
             Container::BorrowedMut(ref bytes) => &**bytes,
             Container::Owned(ref bytes) => bytes,
         };
@@ -103,11 +105,11 @@ impl<'a> From<&'a SecretKey<'a>> for SecretKey<'a> {
 impl<'a> From<&'a mut SecretKey<'a>> for SecretKey<'a> {
     fn from(sk: &'a mut SecretKey<'a>) -> SecretKey<'a> {
         match sk.inner {
-            Container::Borrowed(ref bytes) => SecretKey {
-                inner: Container::Borrowed(&**bytes),
+            Container::Borrowed(bytes) => SecretKey {
+                inner: Container::Borrowed(bytes),
             },
             Container::BorrowedMut(ref mut bytes) => SecretKey {
-                inner: Container::BorrowedMut(&mut **bytes),
+                inner: Container::BorrowedMut(bytes),
             },
             Container::Owned(ref mut bytes) => SecretKey {
                 inner: Container::BorrowedMut(&mut *bytes),
@@ -116,7 +118,7 @@ impl<'a> From<&'a mut SecretKey<'a>> for SecretKey<'a> {
     }
 }
 
-impl<'a> fmt::Debug for SecretKey<'a> {
+impl fmt::Debug for SecretKey<'_> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "****")
     }
@@ -128,7 +130,7 @@ pub struct SecretKey<'a> {
     pub(crate) inner: Container<'a>,
 }
 
-impl<'a> SecretKey<'a> {
+impl SecretKey<'_> {
     /// Constructs a [`SecretKey`](struct.SecretKey.html) from a base64-encoded `&str` (or anything
     /// that can be dereferenced into a base64-encoded `&str`) using the
     /// [standard base64 encoding](https://docs.rs/base64/0.9.1/base64/constant.STANDARD.html).
@@ -136,7 +138,7 @@ impl<'a> SecretKey<'a> {
     where
         S: AsRef<str>,
     {
-        let bytes = base64::decode_config(s.as_ref(), base64::STANDARD).map_err(|_| {
+        let bytes = STANDARD.decode(s.as_ref()).map_err(|_| {
             Error::new(ErrorKind::Base64DecodeError).add_context(format!("&str: {}", s.as_ref()))
         })?;
         Ok(SecretKey {
@@ -148,12 +150,12 @@ impl<'a> SecretKey<'a> {
     /// [url-safe encoding](https://docs.rs/base64/0.9.1/base64/constant.URL_SAFE.html))
     pub fn from_base64_encoded_config<S>(
         s: S,
-        config: base64::Config,
+        engine: GeneralPurpose,
     ) -> Result<SecretKey<'static>, Error>
     where
         S: AsRef<str>,
     {
-        let bytes = base64::decode_config(s.as_ref(), config).map_err(|_| {
+        let bytes = engine.decode(s.as_ref()).map_err(|_| {
             Error::new(ErrorKind::Base64DecodeError).add_context(format!("&str: {}", s.as_ref()))
         })?;
         Ok(SecretKey {
@@ -163,7 +165,7 @@ impl<'a> SecretKey<'a> {
     /// Read-only access to the underlying byte buffer
     pub fn as_bytes(&self) -> &[u8] {
         match self.inner {
-            Container::Borrowed(ref bytes) => bytes,
+            Container::Borrowed(bytes) => bytes,
             Container::BorrowedMut(ref bytes) => bytes,
             Container::Owned(ref bytes) => bytes,
         }
@@ -176,12 +178,10 @@ impl<'a> SecretKey<'a> {
     /// (such as a `&str` or a `&[u8]`). The [`SecretKey`](struct.SecretKey.html) must be mutable
     /// in order to hash or verify with the `secret_key_clearing` configuration set to `true`
     pub fn is_mutable(&self) -> bool {
-        match self.inner {
-            Container::Borrowed(_) => false,
-            _ => true,
-        }
+        !matches!(self.inner, Container::Borrowed(_))
     }
     /// Read-only acccess to the underlying byte buffer's length (in number of bytes)
+    #[allow(clippy::len_without_is_empty)]
     pub fn len(&self) -> usize {
         self.as_bytes().len()
     }
@@ -196,12 +196,12 @@ impl<'a> SecretKey<'a> {
     /// Returns the underlying byte buffer as a base64-encoded `String` using
     /// [standard base64 encoding](https://docs.rs/base64/0.9.1/base64/constant.STANDARD.html)
     pub fn to_base64_encoded(&self) -> String {
-        base64::encode_config(self.as_bytes(), base64::STANDARD)
+        STANDARD.encode(self.as_bytes())
     }
     /// Returns the underlying byte buffer as a base64-encoded `String` using
     /// a custom base64 encoding (e.g. a [url-safe encoding](https://docs.rs/base64/0.9.1/base64/constant.URL_SAFE.html))
-    pub fn to_base64_encoded_config(&self, config: base64::Config) -> String {
-        base64::encode_config(self.as_bytes(), config)
+    pub fn to_base64_encoded_config(&self, engine: GeneralPurpose) -> String {
+        engine.encode(self.as_bytes())
     }
     /// Read-only access to the underlying byte buffer as a `&str` if its bytes are valid utf-8
     pub fn to_str(&self) -> Result<&str, Error> {
@@ -211,9 +211,9 @@ impl<'a> SecretKey<'a> {
     }
 }
 
-impl<'a> SecretKey<'a> {
+impl SecretKey<'_> {
     pub(crate) fn validate(&self) -> Result<(), Error> {
-        if self.len() >= ::std::u32::MAX as usize {
+        if self.len() >= u32::MAX as usize {
             return Err(Error::new(ErrorKind::SecretKeyTooLongError)
                 .add_context(format!("Length: {}", self.len())));
         }

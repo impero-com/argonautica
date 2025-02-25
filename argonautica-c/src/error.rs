@@ -4,7 +4,7 @@ use argonautica::Error;
 use libc::c_char;
 
 /// Given an `argonautica_error_t`, this function will return an error message as a static `char*`
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn argonautica_error_msg(err: argonautica_error_t) -> *const c_char {
     err.to_str()
 }
@@ -93,8 +93,8 @@ pub enum argonautica_error_t {
 }
 
 impl argonautica_error_t {
-    #[cfg_attr(rustfmt, rustfmt_skip)]
-    fn to_str(&self) -> *const c_char {
+    #[rustfmt::skip]
+    fn to_str(self) -> *const c_char {
         use argonautica_error_t::*;
         let s: &'static [u8] = match self {
             ARGONAUTICA_OK => b"OK. No error occurred\0",
@@ -163,7 +163,7 @@ impl From<Error> for argonautica_error_t {
             Utf8EncodeError => ARGONAUTICA_ERROR_UTF8_ENCODE,
             VariantEncodeError => ARGONAUTICA_ERROR_BUG,
             VersionEncodeError => ARGONAUTICA_ERROR_BUG,
-            __Nonexhaustive => ARGONAUTICA_ERROR_BUG,
+            _ => ARGONAUTICA_ERROR_BUG,
         }
     }
 }

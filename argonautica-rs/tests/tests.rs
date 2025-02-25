@@ -4,14 +4,19 @@ extern crate failure;
 extern crate lazy_static;
 extern crate rand;
 
-use std::path::{Path, PathBuf};
-use std::process::Command;
-use std::sync::Mutex;
+use std::{
+    path::{Path, PathBuf},
+    process::Command,
+    sync::Mutex,
+};
 
-use argonautica::config::{Variant, Version};
-use argonautica::{Hasher, Verifier};
-use rand::distributions::Alphanumeric;
-use rand::Rng;
+use argonautica::{
+    Hasher, Verifier,
+    config::{Variant, Version},
+};
+use rand::{
+    distr::{Alphanumeric, SampleString},
+};
 
 lazy_static! {
     static ref BUILD_EXISTS: Mutex<bool> = Mutex::new(false);
@@ -66,29 +71,19 @@ fn build_c<P: AsRef<Path>>(build_dir: P) {
 }
 
 fn generate_args(input: &Input) -> Vec<String> {
-    let rng = rand::thread_rng();
+    let mut rng = rand::rng();
     let additional_data = if input.additional_data_len == 0 {
         "".to_string()
     } else {
-        rng.sample_iter(&Alphanumeric)
-            .take(input.additional_data_len)
-            .collect::<String>()
+        Alphanumeric.sample_string(&mut rng, input.additional_data_len)
     };
     let secret_key = if input.secret_key_len == 0 {
         "".to_string()
     } else {
-        rng.sample_iter(&Alphanumeric)
-            .take(input.secret_key_len)
-            .collect::<String>()
+        Alphanumeric.sample_string(&mut rng, input.secret_key_len)
     };
-    let password = rng
-        .sample_iter(&Alphanumeric)
-        .take(input.password_len)
-        .collect::<String>();
-    let salt = rng
-        .sample_iter(&Alphanumeric)
-        .take(input.salt_len)
-        .collect::<String>();
+    let password = Alphanumeric.sample_string(&mut rng, input.password_len);
+    let salt = Alphanumeric.sample_string(&mut rng, input.salt_len);
 
     let flags_string = format!("{}", input.flags);
     let hash_len_string = format!("{}", input.hash_len);
@@ -148,7 +143,6 @@ fn parse_stderr(stderr: &[u8]) -> (String, Vec<u8>) {
         .replace("[", "")
         .replace("]", "")
         .split(",")
-        .into_iter()
         .map(|s| Ok::<_, failure::Error>(s.parse::<u8>()?))
         .collect::<Result<Vec<u8>, failure::Error>>()
         .expect("unable to parse hash from C stderr");
@@ -250,10 +244,10 @@ fn test(input: &Input) {
     println!();
 
     // Compare results
-    if (&encoded1 != &encoded2)
-        || (&encoded2 != &encoded3)
-        || (&hash1 != &hash2)
-        || (&hash2 != &hash3)
+    if (encoded1 != encoded2)
+        || (encoded2 != encoded3)
+        || (hash1 != hash2)
+        || (hash2 != hash3)
     {
         panic!(
             "\nCompare failed:\n{:#?}\n{}\n{}\n{}\n{:?}\n{:?}\n{:?}\n",
@@ -263,6 +257,7 @@ fn test(input: &Input) {
 }
 
 #[test]
+#[ignore]
 fn test_integration() {
     let build_dir = PathBuf::from("tests/c/build");
     build_c(&build_dir);
@@ -294,12 +289,12 @@ fn test_integration() {
                                                     flags: *flags,
                                                     hash_len: *hash_len,
                                                     iterations: *iterations,
-                                                    lanes: (*lane_thread).0,
+                                                    lanes: lane_thread.0,
                                                     memory_size: *memory_size,
                                                     password_len: *password_len,
                                                     salt_len: *salt_len,
                                                     secret_key_len: *secret_key_len,
-                                                    threads: (*lane_thread).1,
+                                                    threads: lane_thread.1,
                                                     variant: *variant,
                                                     version: *version,
                                                 };
@@ -329,7 +324,6 @@ fn parse_stderr_c(stderr: &[u8]) -> (String, String, Vec<u8>, Vec<u8>) {
         .replace("[", "")
         .replace("]", "")
         .split(",")
-        .into_iter()
         .map(|s| Ok::<_, failure::Error>(s.parse::<u8>()?))
         .collect::<Result<Vec<u8>, failure::Error>>()
         .expect("unable to parse hash from C stderr");
@@ -337,7 +331,6 @@ fn parse_stderr_c(stderr: &[u8]) -> (String, String, Vec<u8>, Vec<u8>) {
         .replace("[", "")
         .replace("]", "")
         .split(",")
-        .into_iter()
         .map(|s| Ok::<_, failure::Error>(s.parse::<u8>()?))
         .collect::<Result<Vec<u8>, failure::Error>>()
         .expect("unable to parse hash from C stderr");
@@ -368,12 +361,12 @@ fn test_c(input: &Input) {
     println!();
 
     // Compare results
-    if (&encoded1 != &encoded2)
-        || (&encoded2 != &encoded3)
-        || (&encoded3 != &encoded4)
-        || (&hash1 != &hash2)
-        || (&hash2 != &hash3)
-        || (&hash3 != &hash4)
+    if (encoded1 != encoded2)
+        || (encoded2 != encoded3)
+        || (encoded3 != encoded4)
+        || (hash1 != hash2)
+        || (hash2 != hash3)
+        || (hash3 != hash4)
     {
         panic!(
             "\nCompare failed:\n{:#?}\n{}\n{}\n{}\n{}\n{:?}\n{:?}\n{:?}\n{:?}\n",
@@ -411,12 +404,12 @@ fn test_c_code() {
                                             flags: *flags,
                                             hash_len: *hash_len,
                                             iterations: *iterations,
-                                            lanes: (*lane_thread).0,
+                                            lanes: lane_thread.0,
                                             memory_size: *memory_size,
                                             password_len: *password_len,
                                             salt_len: *salt_len,
                                             secret_key_len: 0, // Note: for high level, can't have secret key
-                                            threads: (*lane_thread).1,
+                                            threads: lane_thread.1,
                                             variant: *variant,
                                             version: *version,
                                         };

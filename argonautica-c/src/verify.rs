@@ -2,11 +2,10 @@
 
 use std::ffi::CStr;
 
-use argonautica::config::Backend;
-use argonautica::Verifier;
+use argonautica::{Verifier, config::Backend};
 use libc::{c_char, c_int};
 
-use {argonautica_backend_t, argonautica_error_t};
+use crate::{argonautica_backend_t, argonautica_error_t};
 
 /// Function that verifies a password against a hash. It will modify the provided `is_valid` int
 /// and return an `argonautica_error_t` indicating whether or not the verification was successful.
@@ -18,8 +17,9 @@ use {argonautica_backend_t, argonautica_error_t};
 ///
 /// For a description of the other arguments, see the documentation for
 /// `argonautica_hash`
-#[no_mangle]
-pub extern "C" fn argonautica_verify(
+#[unsafe(no_mangle)]
+#[allow(clippy::missing_safety_doc)]
+pub unsafe extern "C" fn argonautica_verify(
     is_valid: *mut c_int,
     additional_data: *const u8,
     additional_data_len: u32,
@@ -38,12 +38,8 @@ pub extern "C" fn argonautica_verify(
     }
 
     let backend: Backend = backend.into();
-    let password_clearing = if password_clearing == 0 { false } else { true };
-    let secret_key_clearing = if secret_key_clearing == 0 {
-        false
-    } else {
-        true
-    };
+    let password_clearing = password_clearing != 0;
+    let secret_key_clearing = secret_key_clearing != 0;
 
     let mut verifier = Verifier::default();
     verifier

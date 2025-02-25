@@ -1,7 +1,6 @@
 use std::str::FromStr;
 
-use config::defaults::DEFAULT_VERSION;
-use {Error, ErrorKind};
+use crate::{Error, ErrorKind, config::defaults::DEFAULT_VERSION};
 
 impl Default for Version {
     /// Returns [`Version::_0x13`](enum.Version.html#variant._0x13)
@@ -12,6 +11,7 @@ impl Default for Version {
 
 impl FromStr for Version {
     ///
+    #[allow(clippy::empty_docs)]
     type Err = Error;
 
     /// Performs the following mapping:

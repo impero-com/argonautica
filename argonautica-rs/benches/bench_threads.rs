@@ -3,13 +3,15 @@ extern crate argonautica;
 extern crate criterion;
 extern crate num_cpus;
 
-use argonautica::config::{
-    Variant, Version, DEFAULT_HASH_LEN, DEFAULT_ITERATIONS, DEFAULT_MEMORY_SIZE, DEFAULT_SALT_LEN,
-    DEFAULT_VARIANT, DEFAULT_VERSION,
+use argonautica::{
+    Hasher,
+    config::{
+        DEFAULT_HASH_LEN, DEFAULT_ITERATIONS, DEFAULT_MEMORY_SIZE, DEFAULT_SALT_LEN,
+        DEFAULT_VARIANT, DEFAULT_VERSION, Variant, Version,
+    },
+    input::{Salt, SecretKey},
 };
-use argonautica::input::{Salt, SecretKey};
-use argonautica::Hasher;
-use criterion::Criterion;
+use criterion::{BenchmarkId, Criterion};
 
 const SAMPLE_SIZE: usize = 25;
 
@@ -67,20 +69,24 @@ impl<'a> Bench<'a> {
 }
 
 fn bench_threads(c: &mut Criterion) {
-    c.bench_function_over_inputs(
-        "bench_threads",
-        |b, &&threads| {
-            let bench = Bench {
-                hasher: None,
-                iterations: DEFAULT_ITERATIONS,
-                memory_size: DEFAULT_MEMORY_SIZE,
-                threads,
-            }
-            .setup();
-            b.iter(|| bench.clone().run());
-        },
-        &THREADS,
-    );
+    let mut group = c.benchmark_group("bench_threads");
+    for threads in THREADS {
+        group.bench_with_input(
+            BenchmarkId::from_parameter(threads),
+            &threads,
+            |b, &threads| {
+                let bench = Bench {
+                    hasher: None,
+                    iterations: DEFAULT_ITERATIONS,
+                    memory_size: DEFAULT_MEMORY_SIZE,
+                    threads,
+                }
+                    .setup();
+                b.iter(|| bench.clone().run());
+            },
+        );
+    }
+    group.finish()
 }
 
 criterion_group! {

@@ -1,11 +1,11 @@
-use base64;
+use base64::{Engine, engine::general_purpose::STANDARD_NO_PAD};
 
-use output::HashRaw;
+use crate::output::HashRaw;
 
 impl HashRaw {
     pub(crate) fn encode_rust(&self) -> String {
-        let hash_encoded = base64::encode_config(self.raw_hash_bytes(), base64::STANDARD_NO_PAD);
-        let salt_encoded = base64::encode_config(self.raw_salt_bytes(), base64::STANDARD_NO_PAD);
+        let hash_encoded = STANDARD_NO_PAD.encode(self.raw_hash_bytes());
+        let salt_encoded = STANDARD_NO_PAD.encode(self.raw_salt_bytes());
         format!(
             "${}$v={}$m={},t={},p={}${}${}",
             self.variant().as_str(),
@@ -21,11 +21,9 @@ impl HashRaw {
 
 #[cfg(test)]
 mod tests {
-    use rand::rngs::StdRng;
-    use rand::{RngCore, SeedableRng};
+    use rand::{RngCore, SeedableRng, rngs::StdRng};
 
-    use backend::encode_c;
-    use hasher::Hasher;
+    use crate::{backend::encode_c, hasher::Hasher};
 
     #[test]
     fn test_encode_against_c() {
