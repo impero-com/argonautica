@@ -1,21 +1,29 @@
-use base64;
+use base64::{Engine, engine::general_purpose::STANDARD_NO_PAD};
+use nom::{
+    IResult, Parser,
+    bytes::{take, take_until},
+    combinator::{map, map_res},
+    sequence::{preceded, terminated},
+};
 
-use config::{Variant, Version};
-use output::HashRaw;
-use {Error, ErrorKind};
+use crate::{
+    Error, ErrorKind,
+    config::{Variant, Version},
+    output::HashRaw,
+};
 
 pub(crate) fn decode_rust(hash: &str) -> Result<HashRaw, Error> {
     let (rest, intermediate) = parse_hash(hash).map_err(|_| {
         Error::new(ErrorKind::HashDecodeError).add_context(format!("Hash: {}", &hash))
     })?;
-    let raw_hash_bytes = base64::decode_config(rest, base64::STANDARD_NO_PAD).map_err(|_| {
+    let raw_hash_bytes = STANDARD_NO_PAD.decode(rest).map_err(|_| {
         Error::new(ErrorKind::HashDecodeError).add_context(format!("Hash: {}", &hash))
     })?;
     let hash_raw = HashRaw {
         iterations: intermediate.iterations,
         lanes: intermediate.lanes,
         memory_size: intermediate.memory_size,
-        raw_hash_bytes: raw_hash_bytes,
+        raw_hash_bytes,
         raw_salt_bytes: intermediate.raw_salt_bytes,
         variant: intermediate.variant,
         version: intermediate.version,
@@ -32,48 +40,55 @@ struct IntermediateStruct {
     raw_salt_bytes: Vec<u8>,
 }
 
-#[cfg_attr(rustfmt, rustfmt_skip)]
-named!(parse_hash<&str, IntermediateStruct>, do_parse!(
-    take_until!("$") >>
-    take!(1) >>
-    variant: map_res!(take_until!("$"), |x: &str| x.parse::<Variant>()) >>
-    take_until!("$v=") >>
-    take!(3) >>
-    version: map_res!(take_until!("$"), |x: &str| x.parse::<Version>()) >>
-    take_until!("$m=") >>
-    take!(3) >>
-    memory_size: map_res!(take_until!(","), |x: &str| x.parse::<u32>()) >>
-    take_until!(",t=") >>
-    take!(3) >>
-    iterations: map_res!(take_until!(","), |x: &str| x.parse::<u32>()) >>
-    take_until!(",p=") >>
-    take!(3) >>
-    lanes: map_res!(take_until!("$"), |x: &str| x.parse::<u32>()) >>
-    take_until!("$") >>
-    take!(1) >>
-    raw_salt_bytes: map_res!(take_until!("$"), |x: &str| {
-        base64::decode_config(x, base64::STANDARD_NO_PAD)
-    }) >>
-    take_until!("$") >>
-    take!(1) >>
-    (IntermediateStruct {
-        iterations,
-        lanes,
-        memory_size,
-        raw_salt_bytes,
-        variant,
-        version,
-    })
-));
+fn parse_hash(input: &str) -> IResult<&str, IntermediateStruct> {
+    map(
+        terminated(
+            (
+                preceded(
+                    (take_until("$"), take(1usize)),
+                    map_res(take_until("$"), |x: &str| x.parse::<Variant>()),
+                ),
+                preceded(
+                    (take_until("$v="), take(3usize)),
+                    map_res(take_until("$"), |x: &str| x.parse::<Version>()),
+                ),
+                preceded(
+                    (take_until("$m="), take(3usize)),
+                    map_res(take_until(","), |x: &str| x.parse::<u32>()),
+                ),
+                preceded(
+                    (take_until(",t="), take(3usize)),
+                    map_res(take_until(","), |x: &str| x.parse::<u32>()),
+                ),
+                preceded(
+                    (take_until(",p="), take(3usize)),
+                    map_res(take_until("$"), |x: &str| x.parse::<u32>()),
+                ),
+                preceded(
+                    (take_until("$"), take(1usize)),
+                    map_res(take_until("$"), |x: &str| STANDARD_NO_PAD.decode(x)),
+                ),
+            ),
+            (take_until("$"), take(1usize)),
+        ),
+        |(variant, version, memory_size, iterations, lanes, raw_salt_bytes)| IntermediateStruct {
+            variant,
+            version,
+            memory_size,
+            iterations,
+            lanes,
+            raw_salt_bytes,
+        },
+    )
+    .parse(input)
+}
 
 #[cfg(test)]
 mod tests {
-    use rand::rngs::StdRng;
-    use rand::{RngCore, SeedableRng};
+    use rand::{RngCore, SeedableRng, rngs::StdRng};
 
     use super::*;
-    use backend::c::decode_c;
-    use hasher::Hasher;
+    use crate::{backend::c::decode_c, hasher::Hasher};
 
     #[test]
     fn test_decode() {

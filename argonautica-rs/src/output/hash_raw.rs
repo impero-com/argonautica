@@ -1,17 +1,20 @@
 use std::str::FromStr;
 
-use backend::decode_rust;
-use config::{Variant, Version};
-use Error;
+use crate::{
+    Error,
+    backend::decode_rust,
+    config::{Variant, Version},
+};
 
 impl FromStr for HashRaw {
     ///
+    #[allow(clippy::empty_docs)]
     type Err = Error;
 
     /// Takes a regular string-encoded hash and converts it into an instance
     /// of [`HashRaw`](struct.HashRaw.html)
     fn from_str(s: &str) -> Result<Self, Self::Err> {
-        Ok(decode_rust(s)?)
+        decode_rust(s)
     }
 }
 
@@ -43,6 +46,7 @@ pub struct HashRaw {
 
 impl HashRaw {
     /// Converts the [`HashRaw`](struct.HashRaw.html) to a string-encoded hash
+    #[allow(clippy::inherent_to_string)]
     pub fn to_string(&self) -> String {
         self.encode_rust()
     }

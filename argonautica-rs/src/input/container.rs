@@ -5,12 +5,12 @@ pub(crate) enum Container<'a> {
     Owned(Vec<u8>),
 }
 
-impl<'a> Container<'a> {
+impl Container<'_> {
     pub(crate) fn to_owned(&self) -> Container<'static> {
         match self {
-            Container::Borrowed(ref bytes) => Container::Owned(bytes.to_vec()),
-            Container::BorrowedMut(ref bytes) => Container::Owned(bytes.to_vec()),
-            Container::Owned(ref bytes) => Container::Owned(bytes.to_vec()),
+            Container::Borrowed(bytes) => Container::Owned(bytes.to_vec()),
+            Container::BorrowedMut(bytes) => Container::Owned(bytes.to_vec()),
+            Container::Owned(bytes) => Container::Owned(bytes.to_vec()),
         }
     }
 }

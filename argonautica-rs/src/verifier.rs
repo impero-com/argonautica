@@ -1,24 +1,21 @@
-use futures::Future;
-use futures_cpupool::CpuPool;
+use futures::{executor::ThreadPool, task::SpawnExt};
 
-use backend::decode_rust;
-use config::{default_cpu_pool, Backend, VerifierConfig};
-use input::{AdditionalData, Password, SecretKey};
-use output::HashRaw;
-use {Error, ErrorKind, Hasher};
-
-impl Default for Hash {
-    fn default() -> Hash {
-        Hash::None
-    }
-}
+use crate::{
+    Error, ErrorKind, Hasher,
+    backend::decode_rust,
+    config::{Backend, VerifierConfig, default_cpu_pool},
+    input::{AdditionalData, Password, SecretKey},
+    output::HashRaw,
+};
 
 #[derive(Clone, Debug)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 #[cfg_attr(feature = "serde", serde(rename_all = "camelCase"))]
+#[derive(Default)]
 pub enum Hash {
     Encoded(String),
     Raw(HashRaw),
+    #[default]
     None,
 }
 
@@ -72,8 +69,8 @@ impl<'a> Verifier<'a> {
     /// if you never configure [`Verifier`](struct.Verifier.html) with this method you can still
     /// use the [`verify_non_blocking`](struct.Verifier.html#method.verify_non_blocking) method.
     /// The default cpu pool has as many threads as the number of logical cores on your machine
-    pub fn configure_cpu_pool(&mut self, cpu_pool: CpuPool) -> &mut Verifier<'a> {
-        self.hasher.config.set_cpu_pool(cpu_pool);
+    pub fn configure_thread_pool(&mut self, thread_pool: ThreadPool) -> &mut Verifier<'a> {
+        self.hasher.config.set_thread_pool(thread_pool);
         self
     }
     /// Allows you to configure [`Verifier`](struct.Verifier.html) to erase the password bytes
@@ -143,11 +140,7 @@ impl<'a> Verifier<'a> {
                 self.hasher.config.set_version(hash_raw.version());
                 self.hasher.salt = hash_raw.raw_salt_bytes().into();
                 let hash_raw2 = self.hasher.hash_raw()?;
-                let is_valid = if hash_raw.raw_hash_bytes() == hash_raw2.raw_hash_bytes() {
-                    true
-                } else {
-                    false
-                };
+                let is_valid = hash_raw.raw_hash_bytes() == hash_raw2.raw_hash_bytes();
                 Ok(is_valid)
             }
             Hash::Raw(ref hash_raw) => {
@@ -162,14 +155,10 @@ impl<'a> Verifier<'a> {
                 self.hasher.config.set_version(hash_raw.version());
                 self.hasher.salt = hash_raw.raw_salt_bytes().into();
                 let hash_raw2 = self.hasher.hash_raw()?;
-                let is_valid = if hash_raw.raw_hash_bytes() == hash_raw2.raw_hash_bytes() {
-                    true
-                } else {
-                    false
-                };
+                let is_valid = hash_raw.raw_hash_bytes() == hash_raw2.raw_hash_bytes();
                 Ok(is_valid)
             }
-            Hash::None => return Err(Error::new(ErrorKind::HashMissingError)),
+            Hash::None => Err(Error::new(ErrorKind::HashMissingError)),
         }
     }
     /// <b><u>The primary method (non-blocking version)</u></b>
@@ -177,14 +166,22 @@ impl<'a> Verifier<'a> {
     /// Same as [`verify`](struct.Verifier.html#method.verify) except it returns a
     /// [`Future`](https://docs.rs/futures/0.1.21/futures/future/trait.Future.html)
     /// instead of a [`Result`](https://doc.rust-lang.org/std/result/enum.Result.html)
-    pub fn verify_non_blocking(&mut self) -> impl Future<Item = bool, Error = Error> {
+    pub async fn verify_non_blocking(&mut self) -> Result<bool, Error> {
         let mut verifier = self.to_owned();
-        match verifier.hasher.config.cpu_pool() {
-            Some(cpu_pool) => cpu_pool.spawn_fn(move || verifier.verify()),
+        match verifier.hasher.config.thread_pool() {
+            Some(cpu_pool) => {
+                cpu_pool
+                    .spawn_with_handle(async move { verifier.verify() })
+                    .expect("Failed to spawn")
+                    .await
+            }
             None => {
                 let cpu_pool = default_cpu_pool();
-                verifier.hasher.config.set_cpu_pool(cpu_pool.clone());
-                cpu_pool.spawn_fn(move || verifier.verify())
+                verifier.hasher.config.set_thread_pool(cpu_pool.clone());
+                cpu_pool
+                    .spawn_with_handle(async move { verifier.verify() })
+                    .expect("Failed to spawn")
+                    .await
             }
         }
     }
@@ -247,7 +244,7 @@ impl<'a> Verifier<'a> {
     pub fn config(&self) -> VerifierConfig {
         VerifierConfig::new(
             /* backend */ self.hasher.config.backend(),
-            /* cpu_pool */ self.hasher.config.cpu_pool(),
+            /* cpu_pool */ self.hasher.config.thread_pool(),
             /* password_clearing */ self.hasher.config.password_clearing(),
             /* secret_key_clearing */ self.hasher.config.secret_key_clearing(),
             /* threads */ self.hasher.config.threads(),

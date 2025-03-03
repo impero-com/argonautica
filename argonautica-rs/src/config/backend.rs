@@ -1,5 +1,4 @@
-use config::defaults::DEFAULT_BACKEND;
-use {Error, ErrorKind};
+use crate::{Error, ErrorKind, config::defaults::DEFAULT_BACKEND};
 
 impl Default for Backend {
     /// Returns [`Backend::C`](enum.Backend.html#variant.C)

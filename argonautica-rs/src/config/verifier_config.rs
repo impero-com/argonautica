@@ -1,8 +1,8 @@
-use futures_cpupool::CpuPool;
+use futures::executor::ThreadPool;
 
+use crate::config::Backend;
 #[cfg(feature = "serde")]
-use config::defaults::default_cpu_pool_serde;
-use config::Backend;
+use crate::config::defaults::default_cpu_pool_serde;
 
 /// Read-only configuration for [`Verifier`](../struct.Verifier.html). Can be obtained by calling
 /// the [`config`](../struct.Verifier.html#method.config) method on an instance of
@@ -20,7 +20,7 @@ pub struct VerifierConfig {
             default = "default_cpu_pool_serde"
         )
     )]
-    pub(crate) cpu_pool: Option<CpuPool>,
+    pub(crate) thread_pool: Option<ThreadPool>,
     pub(crate) password_clearing: bool,
     pub(crate) secret_key_clearing: bool,
     pub(crate) threads: u32,
@@ -32,11 +32,8 @@ impl VerifierConfig {
         self.backend
     }
     #[allow(missing_docs)]
-    pub fn cpu_pool(&self) -> Option<CpuPool> {
-        match self.cpu_pool {
-            Some(ref cpu_pool) => Some(cpu_pool.clone()),
-            None => None,
-        }
+    pub fn thread_pool(&self) -> Option<ThreadPool> {
+        self.thread_pool.clone()
     }
     #[allow(missing_docs)]
     pub fn password_clearing(&self) -> bool {
@@ -55,14 +52,14 @@ impl VerifierConfig {
 impl VerifierConfig {
     pub(crate) fn new(
         backend: Backend,
-        cpu_pool: Option<CpuPool>,
+        thread_pool: Option<ThreadPool>,
         password_clearing: bool,
         secret_key_clearing: bool,
         threads: u32,
     ) -> VerifierConfig {
         VerifierConfig {
             backend,
-            cpu_pool,
+            thread_pool,
             password_clearing,
             secret_key_clearing,
             threads,

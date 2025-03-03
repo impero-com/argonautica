@@ -5,9 +5,9 @@ extern crate cfg_if;
 extern crate failure;
 extern crate tempfile;
 
-use std::env;
-use std::fs;
-use std::path::Path;
+use std::{env, fs, path::Path};
+
+use bindgen::RustEdition;
 
 cfg_if! {
     if #[cfg(feature = "simd")] {
@@ -87,11 +87,17 @@ fn main() -> Result<(), failure::Error> {
         .allowlist_type("Argon2_ErrorCodes")
         .ctypes_prefix("libc")
         .layout_tests(true)
-        .raw_line("use libc;")
-        .rust_target(bindgen::RustTarget::Stable_1_64)
-        .rustfmt_bindings(false)
+        .wrap_unsafe_ops(true)
+        // .raw_line("use libc;")
+        .rust_target(
+            bindgen::RustTarget::stable(85, 0).unwrap_or_else(|_| panic!("Invalid rust target")),
+        )
+        .rust_edition(RustEdition::Edition2024)
         .generate()
-        .map_err(|_| failure::err_msg("failed to generate bindings"))?;
+        .map_err(|err| { 
+            eprintln!("{err:?}");
+            failure::err_msg("failed to generate bindings")
+        })?;
     bindings.write_to_file(file_path)?;
 
     Ok(())

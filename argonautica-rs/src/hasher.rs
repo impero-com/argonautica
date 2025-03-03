@@ -1,14 +1,16 @@
-use futures::Future;
-use futures_cpupool::CpuPool;
-use scopeguard;
+use futures::{executor::ThreadPool, task::SpawnExt};
 
-use config::defaults::{default_cpu_pool, default_lanes};
-use config::{Backend, HasherConfig, Variant, Version};
-use input::{AdditionalData, Container, Password, Salt, SecretKey};
-use output::HashRaw;
-use {Error, ErrorKind};
+use crate::{
+    Error, ErrorKind,
+    config::{
+        Backend, HasherConfig, Variant, Version,
+        defaults::{default_cpu_pool, default_lanes},
+    },
+    input::{AdditionalData, Container, Password, Salt, SecretKey},
+    output::HashRaw,
+};
 
-impl<'a> Default for Hasher<'a> {
+impl Default for Hasher<'_> {
     /// Same as the [`new`](struct.Hasher.html#method.new) method
     fn default() -> Hasher<'static> {
         Hasher {
@@ -87,15 +89,14 @@ impl<'a> Hasher<'a> {
     pub fn fast_but_insecure() -> Hasher<'a> {
         fn memory_size(lanes: u32) -> u32 {
             let mut counter = 1;
-            let memory_size = loop {
+            loop {
                 if 2u32.pow(counter) < 8 * lanes {
                     counter += 1;
                     continue;
                 } else {
                     break 2u32.pow(counter);
                 }
-            };
-            memory_size
+            }
         }
         let lanes = default_lanes();
         let mut hasher = Hasher::default();
@@ -131,8 +132,8 @@ impl<'a> Hasher<'a> {
     /// for you on the fly; so even if you never configure [`Hasher`](struct.Hasher.html) with
     /// this method you can still use the non-blocking hashing methods.
     /// The default cpu pool has as many threads as the number of logical cores on your machine
-    pub fn configure_cpu_pool(&mut self, cpu_pool: CpuPool) -> &mut Hasher<'a> {
-        self.config.set_cpu_pool(cpu_pool);
+    pub fn configure_thread_pool(&mut self, thread_pool: ThreadPool) -> &mut Hasher<'a> {
+        self.config.set_thread_pool(thread_pool);
         self
     }
     /// Allows you to configure [`Hasher`](struct.Hasher.html) to use a custom hash length
@@ -248,11 +249,10 @@ impl<'a> Hasher<'a> {
     /// Same as [`hash`](struct.Hasher.html#method.hash) except it returns a
     /// [`Future`](https://docs.rs/futures/0.1.21/futures/future/trait.Future.html)
     /// instead of a [`Result`](https://doc.rust-lang.org/std/result/enum.Result.html)
-    pub fn hash_non_blocking(&mut self) -> impl Future<Item = String, Error = Error> {
-        self.hash_raw_non_blocking().and_then(|hash_raw| {
-            let hash = hash_raw.encode_rust();
-            Ok::<_, Error>(hash)
-        })
+    pub async fn hash_non_blocking(&mut self) -> Result<String, Error> {
+        let hash_raw = self.hash_raw_non_blocking().await?;
+        let hash = hash_raw.encode_rust();
+        Ok(hash)
     }
     /// Like the [`hash`](struct.Hasher.html#method.hash) method, but instead of producing
     /// an string-encoded hash, it produces a [`HashRaw`](output/struct.HashRaw.html) struct
@@ -274,17 +274,25 @@ impl<'a> Hasher<'a> {
     /// Same as [`hash_raw`](struct.Hasher.html#method.hash) except it returns a
     /// [`Future`](https://docs.rs/futures/0.1.21/futures/future/trait.Future.html)
     /// instead of a [`Result`](https://doc.rust-lang.org/std/result/enum.Result.html)
-    pub fn hash_raw_non_blocking(&mut self) -> impl Future<Item = HashRaw, Error = Error> {
+    pub async fn hash_raw_non_blocking(&mut self) -> Result<HashRaw, Error> {
         let hasher = scopeguard::guard(self, |hasher| {
             hasher.clear();
         });
         let mut hasher = hasher.to_owned();
-        match hasher.config.cpu_pool() {
-            Some(cpu_pool) => cpu_pool.spawn_fn(move || hasher.hash_raw()),
+        match hasher.config.thread_pool() {
+            Some(cpu_pool) => {
+                cpu_pool
+                    .spawn_with_handle(async move { hasher.hash_raw() })
+                    .expect("Failed to spawn")
+                    .await
+            }
             None => {
                 let cpu_pool = default_cpu_pool();
-                hasher.config.set_cpu_pool(cpu_pool.clone());
-                cpu_pool.spawn_fn(move || hasher.hash_raw())
+                hasher.config.set_thread_pool(cpu_pool.clone());
+                cpu_pool
+                    .spawn_with_handle(async move { hasher.hash_raw() })
+                    .expect("Failed to spawn")
+                    .await
             }
         }
     }
@@ -395,7 +403,7 @@ impl<'a> Hasher<'a> {
     }
 }
 
-impl<'a> Hasher<'a> {
+impl Hasher<'_> {
     pub(crate) fn clear(&mut self) {
         if self.password.is_some() && self.config.password_clearing() {
             {
@@ -463,7 +471,7 @@ impl<'a> Hasher<'a> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use config::{Variant, Version};
+    use crate::config::{Variant, Version};
 
     struct Test {
         variant: Variant,

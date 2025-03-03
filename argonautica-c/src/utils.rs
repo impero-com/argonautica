@@ -1,19 +1,17 @@
 #![allow(non_camel_case_types)]
 
-use itoa;
 use libc::c_int;
 
-use argonautica_variant_t;
+use crate::argonautica_variant_t;
 
 fn base64_len(len: u32) -> usize {
     let bits = 8 * len as usize;
-    let chars = bits / 6 + if bits % 6 != 0 { 1 } else { 0 };
-    chars
+    bits / 6 + if bits % 6 != 0 { 1 } else { 0 }
 }
 
 /// Function that returns the length of a string-encoded hash (in bytes and including the NULL byte).
 /// If an error occurrs, the function returns -1
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn argonautica_encoded_len(
     hash_len: u32,
     iterations: u32,
@@ -22,22 +20,13 @@ pub extern "C" fn argonautica_encoded_len(
     salt_len: u32,
     variant: argonautica_variant_t,
 ) -> c_int {
-    let mut buf = [0u8; 1024];
+    let mut buf = itoa::Buffer::new();
 
     let fixed_len = 17; // $$$$$v=19m=t=p=,,
     let hash_len = base64_len(hash_len);
-    let iterations_len = match itoa::write(&mut buf[..], iterations) {
-        Ok(bytes_written) => bytes_written,
-        Err(_) => return -1,
-    };
-    let lanes_len = match itoa::write(&mut buf[..], lanes) {
-        Ok(bytes_written) => bytes_written,
-        Err(_) => return -1,
-    };
-    let memory_size_len = match itoa::write(&mut buf[..], memory_size) {
-        Ok(bytes_written) => bytes_written,
-        Err(_) => return -1,
-    };
+    let iterations_len = buf.format(iterations).len();
+    let lanes_len = buf.format(lanes).len();
+    let memory_size_len = buf.format(memory_size).len();
     let salt_len = base64_len(salt_len);
     let variant_len = match variant {
         argonautica_variant_t::ARGONAUTICA_ARGON2D => 7,
@@ -58,8 +47,9 @@ pub extern "C" fn argonautica_encoded_len(
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use argonautica::Hasher;
+
+    use super::*;
 
     fn test(
         hash_len: u32,
@@ -84,7 +74,7 @@ mod tests {
                 .with_salt(vec![1u8; salt_len as usize])
                 .hash()
                 .unwrap();
-            (encoded.as_bytes().len() + 1) as c_int
+            (encoded.len() + 1) as c_int
         };
         assert_eq!(computed, expected);
     }

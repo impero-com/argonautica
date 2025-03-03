@@ -1,7 +1,6 @@
-use rand::rngs::OsRng;
-use rand::RngCore;
+use rand::{TryRngCore, rngs::OsRng};
 
-use {Error, ErrorKind};
+use crate::{Error, ErrorKind};
 
 impl Default for Salt {
     /// Creates a new <u>random</u> `Salt`.
@@ -27,31 +26,31 @@ impl From<String> for Salt {
     }
 }
 
-impl<'a> From<&'a [u8]> for Salt {
+impl From<&[u8]> for Salt {
     fn from(bytes: &[u8]) -> Salt {
         Salt(Kind::Deterministic(bytes.to_vec()))
     }
 }
 
-impl<'a> From<&'a str> for Salt {
+impl From<&str> for Salt {
     fn from(s: &str) -> Salt {
         Salt(Kind::Deterministic(s.as_bytes().to_vec()))
     }
 }
 
-impl<'a> From<&'a Vec<u8>> for Salt {
+impl From<&Vec<u8>> for Salt {
     fn from(bytes: &Vec<u8>) -> Salt {
         Salt(Kind::Deterministic(bytes.clone()))
     }
 }
 
-impl<'a> From<&'a String> for Salt {
+impl From<&String> for Salt {
     fn from(s: &String) -> Salt {
         Salt(Kind::Deterministic(s.clone().into_bytes()))
     }
 }
 
-impl<'a> From<&'a Salt> for Salt {
+impl From<&Salt> for Salt {
     fn from(salt: &Salt) -> Salt {
         salt.clone()
     }
@@ -106,6 +105,7 @@ impl Salt {
         }
     }
     /// Read-only acccess to the underlying byte buffer's length
+    #[allow(clippy::len_without_is_empty)]
     pub fn len(&self) -> usize {
         self.as_bytes().len()
     }
@@ -120,13 +120,10 @@ impl Salt {
     /// If you have a <u>random</u> `Salt`, this method will generate new random bytes of the
     /// length of your `Salt`. If you have a <u>deterministic</u> `Salt`, this method does nothing
     pub fn update(&mut self) -> Result<(), Error> {
-        match self.0 {
-            Kind::Random(ref mut bytes) => {
-                OsRng
-                    .try_fill_bytes(bytes)
-                    .map_err(|_| Error::new(ErrorKind::OsRngError))?;
-            }
-            _ => (),
+        if let Kind::Random(ref mut bytes) = self.0 {
+            OsRng
+                .try_fill_bytes(bytes)
+                .map_err(|_| Error::new(ErrorKind::OsRngError))?;
         }
         Ok(())
     }
@@ -140,7 +137,7 @@ impl Salt {
                 Error::new(ErrorKind::SaltTooShortError).add_context(format!("Length: {}", len))
             );
         }
-        if len >= ::std::u32::MAX as usize {
+        if len >= u32::MAX as usize {
             return Err(
                 Error::new(ErrorKind::SaltTooLongError).add_context(format!("Length: {}", len))
             );

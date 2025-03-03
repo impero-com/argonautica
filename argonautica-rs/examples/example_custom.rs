@@ -1,19 +1,19 @@
 extern crate argonautica;
-extern crate dotenv;
 #[macro_use]
 extern crate failure;
 
-use std::collections::HashMap;
-use std::env;
+use std::{collections::HashMap, env};
 
-use argonautica::config::{Variant, Version};
-use argonautica::input::{Salt, SecretKey};
-use argonautica::{Hasher, Verifier};
+use argonautica::{
+    Hasher, Verifier,
+    config::{Variant, Version},
+    input::{Salt, SecretKey},
+};
 
 // Helper method to load the secret key from a .env file. Used in `main` below.
 fn load_secret_key() -> Result<SecretKey<'static>, failure::Error> {
     let dotenv_path = env::current_dir()?.join("examples").join("example.env");
-    dotenv::from_path(&dotenv_path).map_err(|e| format_err!("{}", e))?;
+    dotenvy::from_path(&dotenv_path).map_err(|e| format_err!("{}", e))?;
     let base64_encoded_secret_key = env::var("SECRET_KEY")?;
     Ok(SecretKey::from_base64_encoded(&base64_encoded_secret_key)?)
 }

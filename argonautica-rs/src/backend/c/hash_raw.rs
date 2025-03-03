@@ -1,9 +1,8 @@
 use std::ffi::CStr;
 
-use output::HashRaw;
-use {ffi, Error, ErrorKind, Hasher};
+use crate::{Error, ErrorKind, Hasher, ffi, output::HashRaw};
 
-impl<'a> Hasher<'a> {
+impl Hasher<'_> {
     pub(crate) fn hash_raw_c(&mut self) -> Result<HashRaw, Error> {
         let (ad, adlen) = match self.additional_data {
             Some(ref additional_data) => (

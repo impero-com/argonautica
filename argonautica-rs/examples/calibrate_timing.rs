@@ -4,9 +4,11 @@ extern crate num_cpus;
 
 use std::time::Instant;
 
-use argonautica::config::{Variant, Version};
-use argonautica::input::{Salt, SecretKey};
-use argonautica::Hasher;
+use argonautica::{
+    Hasher,
+    config::{Variant, Version},
+    input::{Salt, SecretKey},
+};
 
 pub const HASH_LEN: u32 = 32;
 pub const ITERATIONS: [u32; 7] = [64, 128, 192, 256, 320, 384, 448];

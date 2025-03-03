@@ -106,11 +106,10 @@
 //! configuration options. It provides color on each of the options.
 //! ```
 //! extern crate argonautica;
-//! extern crate futures_cpupool;
 //!
 //! use argonautica::Hasher;
 //! use argonautica::config::{Backend, Variant, Version};
-//! use futures_cpupool::CpuPool;
+//! use futures::executor::ThreadPool;
 //!
 //! fn main() {
 //!     let mut hasher = Hasher::default();
@@ -122,7 +121,7 @@
 //!         // do the work. In the future hopefully a Rust backend will also be supported, but,
 //!         // for the moment, you must use `Backend::C`, which is the default. Using
 //!         // `Backend::Rust` will result in an error (again, for the moment).
-//!         .configure_cpu_pool(CpuPool::new(2))
+//!         .configure_thread_pool(ThreadPool::builder().pool_size(2).create().unwrap())
 //!         // 👆 There are two non-blocking methods on `Hasher` that perform computation on
 //!         // a separate thread and return a `Future` instead of a `Result` (`hash_non_blocking`
 //!         // and `hash_raw_non_blocking`). These methods allow argonautica to play nicely with
@@ -285,11 +284,9 @@ extern crate blake2_rfc;
 #[macro_use]
 extern crate failure;
 extern crate futures;
-extern crate futures_cpupool;
 extern crate libc;
 #[macro_use]
 extern crate log;
-#[macro_use]
 extern crate nom;
 extern crate num_cpus;
 extern crate rand;
